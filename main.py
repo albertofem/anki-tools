@@ -6,9 +6,11 @@ import os
 import time
 import zipfile
 from contextlib import contextmanager, redirect_stdout
+from datetime import datetime
 from io import BytesIO
 from urllib.request import urlopen
 
+import PIL
 import click
 import google.cloud.texttospeech as tts
 import requests
@@ -29,14 +31,13 @@ def cli():
 
 @cli.command()
 def sync_satori_reader():
-
     click.echo("Triggering Anki export in Satori reader...")
 
-    export_satory_reader()
+    # export_satory_reader()
 
     click.echo("Waiting 30 seconds for export to finish...")
 
-    time.sleep(30)  # give time for Satori to publish the export
+    # time.sleep(30)  # give time for Satori to publish the export
 
     click.echo("Proceeding to download export...")
 
@@ -47,21 +48,22 @@ def sync_satori_reader():
     with zipfile.ZipFile(BytesIO(resp.read())) as archive:
         with archive.open("exported.csv") as csvFile:
             content = []
-            words = csv.reader(codecs.iterdecode(csvFile, 'utf-8'), delimiter=',', quotechar='|')
+            words = csv.reader(codecs.iterdecode(csvFile, 'utf-8'), delimiter=',', quotechar='"')
             headers = next(words)
             for word in words:
                 row_data = {key: value for key, value in zip(headers, word)}
                 content.append(row_data)
 
-    click.echo(f"Found {len(content)} words in Satory export, proceeding!")
+    click.echo(f"Found {len(content)} words in Satori export, proceeding!")
 
     for word in content:
         add_note(
             word['Expression'],
             word['Expression-ReadingsOnly'],
             word['English'],
-            word['Context1-PerYourPreferences'],
-            word['Context1-Translation']
+            word['Context1'],
+            word['Context1-Translation'],
+            "satori"
         )
 
 
@@ -119,18 +121,18 @@ def sync_takoboto():
         add_note(word, reading, glossary, sentence, sentenceEnglish)
 
 
-def add_note(word, reading, glossary, sentence, sentenceEnglish):
+def add_note(word, reading, glossary, sentence, sentenceEnglish, tag):
     ankiConnectorUtils = AnkiConnectorUtils("http://localhost:8765")
 
     with suppressStream():
         existingNote = ankiConnectorUtils.makeRequest("findNotes", {
-            "query": f"Word:{word}"
+            "query": f"deck:Mining Word:{word}"
         })
 
     click.echo("----")
 
     if len(existingNote['result']) > 0:
-        print(f"{word}: Note exists, ignoring")
+        click.echo(f"{word}: Note exists, ignoring")
         return
 
     click.echo(f"{word}: downloading image from Google")
@@ -142,48 +144,54 @@ def add_note(word, reading, glossary, sentence, sentenceEnglish):
     click.echo(f"{word}: downloading TTS for sentence: {sentence}")
     sentenceAudio = text_to_wav("ja-JP-Wavenet-D", sentence)
 
-    with suppressStream():
-        response = ankiConnectorUtils.makeRequest("addNote", {
-            "note": {
-                "deckName": "MiningTest",
-                "modelName": "JapaneseCard",
-                "fields": {
-                    "Word": word,
-                    "Reading": reading,
-                    "Glossary": glossary,
-                    "Sentence": sentence,
-                    "Sentence-English": sentenceEnglish,
+    notePayload = {
+        "note": {
+            "deckName": "Mining",
+            "modelName": "JapaneseCard",
+            "fields": {
+                "Word": word,
+                "Reading": reading,
+                "Glossary": glossary,
+                "Sentence": sentence,
+                "Sentence-English": sentenceEnglish,
+            },
+            "options": {
+                "allowDuplicate": True,
+                "duplicateScope": "deck",
+            },
+            "audio": [
+                {
+                    "data": base64.b64encode(audio).decode(),
+                    "filename": f"anki_tools_{word}.wav",
+                    "fields": [
+                        "Audio"
+                    ]
                 },
-                "audio": [
-                    {
-                        "data": base64.b64encode(audio).decode(),
-                        "filename": f"anki_tools_{word}.wav",
-                        "fields": [
-                            "Audio"
-                        ]
-                    },
-                    {
-                        "data": base64.b64encode(sentenceAudio).decode(),
-                        "filename": f"anki_tools_{word}_{sentence}.wav",
-                        "fields": [
-                            "Sentence-Audio"
-                        ]
-                    }
-                ],
-                "picture": [
-                    {
-                        "data": base64.b64encode(picture.getvalue()).decode(),
-                        "filename": f"anki_tools_{word}.jpg",
-                        "fields": [
-                            "Picture"
-                        ]
-                    }
-                ],
-                "tags": [
-                    "anki-tools-albertofem"
-                ]
-            }
-        })
+                {
+                    "data": base64.b64encode(sentenceAudio).decode(),
+                    "filename": f"anki_tools_{word}_{sentence}.wav",
+                    "fields": [
+                        "Sentence-Audio"
+                    ]
+                }
+            ],
+            "tags": [
+                f"anki-tools-{tag}-{datetime.today().strftime('%Y-%m-%d-%H-%M')}"
+            ]
+        }
+    }
+
+    if picture:
+        notePayload['note']['picture'] = [{
+            "data": base64.b64encode(picture.getvalue()).decode(),
+            "filename": f"anki_tools_{word}.jpg",
+            "fields": [
+                "Picture"
+            ]
+        }]
+
+    with suppressStream():
+        response = ankiConnectorUtils.makeRequest("addNote", notePayload)
 
     if response["error"] is not None:
         click.echo(f"{word}: error creating note, Anki responded with: {response['error']}")
@@ -194,18 +202,27 @@ def add_note(word, reading, glossary, sentence, sentenceEnglish):
 def download_image_from_google(word):
     gis = GoogleImagesSearch(os.environ["GOOGLE_SEARCH_API_KEY"], os.environ["GOOGLE_SEARCH_CSE"])
 
-    gis.search({'q': word, 'num': 1})
+    gis.search({'q': word, 'num': 3})
 
+    foundImage = False
+    img_byte_arr = None
     for image in gis.results():
-        imagePil = Image.open(BytesIO(image.get_raw_data()))
+        if foundImage:
+            break
 
-        imageResized = resizeimage.resizeimage.resize_height(imagePil, 300, False)
+        try:
+            imagePil = Image.open(BytesIO(image.get_raw_data()))
 
-        img_byte_arr = io.BytesIO()
-        imageResized.save(img_byte_arr, format='PNG')
+            imageResized = resizeimage.resizeimage.resize_height(imagePil, 300, False)
 
+            img_byte_arr = io.BytesIO()
+            imageResized.save(img_byte_arr, format='PNG')
+        except PIL.UnidentifiedImageError:
+            continue
 
-        return img_byte_arr
+        foundImage = True
+
+    return img_byte_arr
 
 
 def text_to_wav(voice_name: str, text: str):
