@@ -29,9 +29,16 @@ def cli():
 
 @cli.command()
 def sync_satori_reader():
+
+    click.echo("Triggering Anki export in Satori reader...")
+
     export_satory_reader()
 
+    click.echo("Waiting 30 seconds for export to finish...")
+
     time.sleep(30)  # give time for Satori to publish the export
+
+    click.echo("Proceeding to download export...")
 
     exportLink = find_satori_reader_exports()
 
@@ -45,6 +52,8 @@ def sync_satori_reader():
             for word in words:
                 row_data = {key: value for key, value in zip(headers, word)}
                 content.append(row_data)
+
+    click.echo(f"Found {len(content)} words in Satory export, proceeding!")
 
     for word in content:
         add_note(
@@ -80,6 +89,7 @@ def find_satori_reader_exports():
 
     for link in soup.find_all('a'):
         if "review-card-export" in link.get('href'):
+            click.echo(f"Found export link: {link.get('href')}")
             return link.get('href')  # first link correspond to latest export
 
 
@@ -89,7 +99,7 @@ def sync_takoboto():
 
     with suppressStream():
         notes = ankiConnectorUtils.makeRequest("findNotes", {
-            "query": "deck:Takotobo"
+            "query": "deck:Takoboto"
         })
 
     with suppressStream():
@@ -97,9 +107,9 @@ def sync_takoboto():
             "notes": notes['result']
         })
 
-    for note in notesInfo['result']:
-        print(f"Processing card: {note['fields']['Japanese']['value']}")
+    click.echo(f"Found {len(notesInfo['result'])} notes in Takotobo's deck, proceeding with importing...")
 
+    for note in notesInfo['result']:
         word = note['fields']['Japanese']['value']
         reading = note['fields']['Reading']['value']
         glossary = note['fields']['Meaning']['value']
@@ -114,15 +124,22 @@ def add_note(word, reading, glossary, sentence, sentenceEnglish):
 
     with suppressStream():
         existingNote = ankiConnectorUtils.makeRequest("findNotes", {
-            "query": f"deck:MiningTest Word:{word}"
+            "query": f"Word:{word}"
         })
 
+    click.echo("----")
+
     if len(existingNote['result']) > 0:
-        print(f"Note exists: {word}, ignoring...")
+        print(f"{word}: Note exists, ignoring")
         return
 
+    click.echo(f"{word}: downloading image from Google")
     picture = download_image_from_google(word)
+
+    click.echo(f"{word}: downloading TTS for word")
     audio = text_to_wav("ja-JP-Wavenet-D", word)
+
+    click.echo(f"{word}: downloading TTS for sentence: {sentence}")
     sentenceAudio = text_to_wav("ja-JP-Wavenet-D", sentence)
 
     with suppressStream():
@@ -169,7 +186,9 @@ def add_note(word, reading, glossary, sentence, sentenceEnglish):
         })
 
     if response["error"] is not None:
-        print(f"Error creating note: {response['error']}")
+        click.echo(f"{word}: error creating note, Anki responded with: {response['error']}")
+    else:
+        click.echo(f"{word}: note created!")
 
 
 def download_image_from_google(word):
@@ -185,6 +204,7 @@ def download_image_from_google(word):
         img_byte_arr = io.BytesIO()
         imageResized.save(img_byte_arr, format='PNG')
 
+
         return img_byte_arr
 
 
@@ -197,6 +217,7 @@ def text_to_wav(voice_name: str, text: str):
         language_code=language_code,
         name=voice_name
     )
+
     audio_config = tts.AudioConfig(audio_encoding=tts.AudioEncoding.LINEAR16)
 
     client = tts.TextToSpeechClient()
