@@ -1,32 +1,30 @@
+import base64
 import codecs
+import csv
 import io
 import os
-import sys
 import time
 import zipfile
 from contextlib import contextmanager, redirect_stdout
+from io import BytesIO
 from urllib.request import urlopen
+
 import click
+import google.cloud.texttospeech as tts
+import requests
 import resizeimage.resizeimage
-from src.org_to_anki.ankiConnectWrapper.AnkiConnectorUtils import AnkiConnectorUtils
+from PIL import Image
+from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from google_images_search import GoogleImagesSearch
-from io import BytesIO
-import google.cloud.texttospeech as tts
-import base64
-from PIL import Image
-import requests
-from bs4 import BeautifulSoup
-import csv
+from src.org_to_anki.ankiConnectWrapper.AnkiConnectorUtils import AnkiConnectorUtils
 
 load_dotenv()
 
 
 @click.group()
-@click.option('--debug/--no-debug', default=False)
-@click.option('--deckname', default="Mining")
-def cli(debug, deckname):
-    click.echo(f"")
+def cli():
+    pass
 
 
 @cli.command()
