@@ -3,10 +3,11 @@ import codecs
 import csv
 import io
 import os
+import random
+import string
 import time
 import zipfile
 from contextlib import contextmanager, redirect_stdout
-from datetime import datetime
 from io import BytesIO
 from urllib.request import urlopen
 
@@ -30,14 +31,15 @@ def cli():
 
 
 @cli.command()
-def sync_satori_reader():
-    click.echo("Triggering Anki export in Satori reader...")
-
-    # export_satory_reader()
-
-    click.echo("Waiting 30 seconds for export to finish...")
-
-    # time.sleep(30)  # give time for Satori to publish the export
+@click.option('--no-trigger', is_flag=True, show_default=True, default=False,
+              help='Do not trigger a Satori Reader export')
+@click.argument('deck', default='Mining')
+def sync_satori_reader(no_trigger, deck):
+    if no_trigger is False:
+        click.echo("Triggering Anki export in Satori reader...")
+        export_satory_reader()
+        click.echo("Waiting 30 seconds for export to finish...")
+        time.sleep(30)  # give time for Satori to publish the export
 
     click.echo("Proceeding to download export...")
 
@@ -63,7 +65,8 @@ def sync_satori_reader():
             word['English'],
             word['Context1'],
             word['Context1-Translation'],
-            "satori"
+            "satori",
+            deck
         )
 
 
@@ -96,7 +99,8 @@ def find_satori_reader_exports():
 
 
 @cli.command()
-def sync_takoboto():
+@click.argument('deck', default='Mining')
+def sync_takoboto(deck):
     ankiConnectorUtils = AnkiConnectorUtils("http://localhost:8765")
 
     with suppressStream():
@@ -118,15 +122,18 @@ def sync_takoboto():
         sentence = note['fields']['Sentence']['value']
         sentenceEnglish = note['fields']['SentenceMeaning']['value']
 
-        add_note(word, reading, glossary, sentence, sentenceEnglish)
+        add_note(word, reading, glossary, sentence, sentenceEnglish, "takoboto", deck)
 
 
-def add_note(word, reading, glossary, sentence, sentenceEnglish, tag):
-    ankiConnectorUtils = AnkiConnectorUtils("http://localhost:8765")
+def add_note(word, reading, glossary, sentence, sentenceEnglish, tag, deck):
+    ankiConnectorUtils = AnkiConnectorUtils(
+        os.environ['ANKI_CONNECT_URL'] if
+        os.environ['ANKI_CONNECT_URL'] else "http://localhost:8765"
+    )
 
     with suppressStream():
         existingNote = ankiConnectorUtils.makeRequest("findNotes", {
-            "query": f"deck:Mining Word:{word}"
+            "query": f"deck:{deck} Word:{word}"
         })
 
     click.echo("----")
@@ -146,7 +153,7 @@ def add_note(word, reading, glossary, sentence, sentenceEnglish, tag):
 
     notePayload = {
         "note": {
-            "deckName": "Mining",
+            "deckName": deck,
             "modelName": "JapaneseCard",
             "fields": {
                 "Word": word,
@@ -176,7 +183,7 @@ def add_note(word, reading, glossary, sentence, sentenceEnglish, tag):
                 }
             ],
             "tags": [
-                f"anki-tools-{tag}-{datetime.today().strftime('%Y-%m-%d-%H-%M')}"
+                f"anki-tools-{tag}-{''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(6))}"
             ]
         }
     }
