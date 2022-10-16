@@ -11,6 +11,25 @@ During the import, this tool will also download the following:
 - TTS for the word
 - TTS for the sentence (if any)
 
+## General requirements
+
+You will need:
+
+- Python3
+- pip to install the dependencies (under `requirements.txt`)
+- Google Cloud account, with a project and billing properly set
+- Google TTS api enabled
+- Google Search api enabled
+- A Programmable Search Engine (https://programmablesearchengine.google.com/controlpanel/all)
+- A Google Cloyd API key with permissions to the Google Search API
+- A Service Account and it's credentials (`.json` file), with access to the TTS api
+- AnkiConnect plugin for Anki
+
+And obviously:
+
+- A Satori Reader account (no need to be subscriber)
+- The Takotobo app and the ability to export to Anki (free in mobile versions)
+
 ## General configuration
 
 A few environment variables are needed for this script to work. These are imported from a `.env` file. An example is provided in `.env.example`
