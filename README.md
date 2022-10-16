@@ -32,7 +32,7 @@ You will need:
 - Google TTS api enabled
 - Google Search api enabled
 - A Programmable Search Engine (https://programmablesearchengine.google.com/controlpanel/all)
-- A Google Cloyd API key with permissions to the Google Search API
+- A Google Cloud API key with permissions to the Google Search API
 - A Service Account and it's credentials (`.json` file), with access to the TTS api
 - AnkiConnect plugin for Anki
 
