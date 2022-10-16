@@ -11,6 +11,17 @@ During the import, this tool will also download the following:
 - TTS for the word
 - TTS for the sentence (if any)
 
+## Roadmap
+
+- [x] Satori Reader import
+- [x] Takotobo import
+- [ ] Add missing pictures to notes
+- [ ] Add missing sentence to notes, fetching from tatoeba
+- [ ] Ability to pick a image from Google Search (via GUI)
+- [ ] Ability to select TTS voice type
+- [ ] Ability to add dictionary entries for notes from both bilingual and monolingual dictionaries
+- [ ] Ability to clean up Yomichan entries (with messy Glossary entries)
+
 ## General requirements
 
 You will need:
