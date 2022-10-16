@@ -39,7 +39,7 @@ You will need:
 And obviously:
 
 - A Satori Reader account (no need to be subscriber)
-- The Takotobo app and the ability to export to Anki (free in mobile versions)
+- The Takoboto app and the ability to export to Anki (free in mobile versions)
 
 ## General configuration
 
