@@ -24,6 +24,8 @@ from src.org_to_anki.ankiConnectWrapper.AnkiConnectorUtils import AnkiConnectorU
 
 load_dotenv()
 
+unique_suffix = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(6))
+
 
 @click.group()
 def cli():
@@ -183,7 +185,7 @@ def add_note(word, reading, glossary, sentence, sentenceEnglish, tag, deck):
                 }
             ],
             "tags": [
-                f"anki-tools-{tag}-{''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(6))}"
+                f"anki-tools-{tag}-{unique_suffix}"
             ]
         }
     }
