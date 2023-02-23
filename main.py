@@ -10,6 +10,7 @@ import zipfile
 from contextlib import contextmanager, redirect_stdout
 from io import BytesIO
 from urllib.request import urlopen
+import hashlib
 
 import PIL
 import click
@@ -35,13 +36,15 @@ def cli():
 @cli.command()
 @click.option('--no-trigger', is_flag=True, show_default=True, default=False,
               help='Do not trigger a Satori Reader export')
+@click.option('--wait-time', type=int, default=60,
+              help='Amount of time (in seconds) to wait for the Satori export to finish')
 @click.argument('deck', default='Mining')
-def sync_satori_reader(no_trigger, deck):
+def sync_satori_reader(no_trigger, deck, wait_time):
     if no_trigger is False:
         click.echo("Triggering Anki export in Satori reader...")
-        export_satory_reader()
-        click.echo("Waiting 30 seconds for export to finish...")
-        time.sleep(30)  # give time for Satori to publish the export
+        export_satori_reader()
+        click.echo(f"Waiting {wait_time} seconds for export to finish...")
+        time.sleep(wait_time)
 
     click.echo("Proceeding to download export...")
 
@@ -72,7 +75,7 @@ def sync_satori_reader(no_trigger, deck):
         )
 
 
-def export_satory_reader():
+def export_satori_reader():
     url = 'https://www.satorireader.com/api/studylist/export'
 
     requests.post(url, headers={
@@ -127,6 +130,72 @@ def sync_takoboto(deck):
         add_note(word, reading, glossary, sentence, sentenceEnglish, "takoboto", deck)
 
 
+@cli.command()
+@click.argument('deck', default='Grammar')
+@click.argument('sentence_field', default='Sentence')
+@click.argument('sentence_audio_field', default='Sentence-Audio')
+def fill_missing_audio(deck, sentence_field, sentence_audio_field):
+    ankiConnectorUtils = AnkiConnectorUtils(
+        os.environ['ANKI_CONNECT_URL'] if
+        os.environ['ANKI_CONNECT_URL'] else "http://localhost:8765"
+    )
+
+    with suppressStream():
+        notes = ankiConnectorUtils.makeRequest("findNotes", {
+            "query": f"deck:{deck}"
+        })
+
+    with suppressStream():
+        notesInfo = ankiConnectorUtils.makeRequest("notesInfo", {
+            "notes": notes['result']
+        })
+
+    click.echo(f"Found {len(notesInfo['result'])} notes in {deck}, proceeding with checking audio...")
+
+    for note in notesInfo['result']:
+        sentence_audio = note['fields'][sentence_audio_field]['value']
+        if sentence_audio:
+            continue
+
+        sentence_jp = note['fields'][sentence_field]['value']
+        sentence_jp = BeautifulSoup(sentence_jp, 'html.parser').get_text()
+        sentence_jp = sentence_jp.replace('\xa0', '').replace('\n', '').strip()
+
+        click.echo(f"Generating audio for '{sentence_jp}'")
+        sentence_audio = text_to_wav("ja-JP-Wavenet-D", sentence_jp)
+
+        click.echo(f"Uploading audio to field '{sentence_audio_field}' with note id: '{note['noteId']}'")
+
+        audio_filename = f"anki_tools_{hashlib.md5(sentence_jp.encode('utf-8')).hexdigest()}.wav"
+
+        with suppressStream():
+            ankiConnectorUtils.makeRequest("guiBrowse", {
+                "query": "nid:1",
+            })
+
+            ankiConnectorUtils.makeRequest("updateNoteFields", {
+                "note": {
+                    "id": note['noteId'],
+                    "fields": {
+                        sentence_audio_field: ""
+                    },
+                    "audio": [
+                        {
+                            "data": base64.b64encode(sentence_audio).decode(),
+                            "filename": audio_filename,
+                            "fields": [
+                                sentence_audio_field
+                            ]
+                        }
+                    ]
+                },
+            })
+
+            ankiConnectorUtils.makeRequest("guiBrowse", {
+                "query": f"nid:{note['noteId']}",
+            })
+
+    click.echo("Done!")
 def add_note(word, reading, glossary, sentence, sentenceEnglish, tag, deck):
     ankiConnectorUtils = AnkiConnectorUtils(
         os.environ['ANKI_CONNECT_URL'] if
@@ -225,7 +294,7 @@ def download_image_from_google(word):
             imageResized = resizeimage.resizeimage.resize_height(imagePil, 300, False)
 
             img_byte_arr = io.BytesIO()
-            imageResized.save(img_byte_arr, format='PNG')
+            imageResized.convert('RGB').save(img_byte_arr, format='PNG', optimize=True)
         except PIL.UnidentifiedImageError:
             continue
 

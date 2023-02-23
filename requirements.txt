@@ -3,3 +3,4 @@ git+https://github.com/c-okelly/org_to_anki
 Google-Images-Search
 python-dotenv
 google-cloud-texttospeech
+BeautifulSoup4
