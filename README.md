@@ -100,3 +100,27 @@ The command to import cards is:
 ```
 python3 main.py sync-satori-takoboto
 ```
+
+## Filling Missing Audio
+
+This function is used to fill in missing audio for notes in a deck. It does this by taking the following inputs:
+
+* The name of the deck where the notes are located
+* The name of the field with the sentence in Japanese
+* The name of the field with the sentence audio
+
+After you run the function, it will read every note in the specified deck and check if the field with the sentence audio is filled or not. If it is already filled, nothing will be done for that note. If it is not filled, the function will read the field with the sentence in Japanese, invoke Google TTS, and upload the audio into the sentence audio field.
+
+This function is useful when you have a lot of notes in your deck that are missing sentence audio. It can save you time by automating the process of filling in the missing audio for you.
+
+To run the function, use the following command:
+
+```
+python3 main.py fill-missing-audio --deck [name of the deck] --jp-field [name of the field with Japanese sentence] --audio-field [name of the field with audio]
+```
+
+For example, if you have a deck called "Vocabulary" with a field called "Sentence" for the Japanese sentence and a field called "Sentence-Audio" for the audio, you would run the following command:
+
+```
+python3 main.py fill-missing-audio --deck Vocabulary --jp-field Sentence --audio-field Sentence-Audio
+```
